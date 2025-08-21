@@ -9,9 +9,14 @@ from app.services.state import create_state, verify_state, StateError
 from app.services.google_oauth import build_consent_url, exchange_code_for_tokens
 from app.services.tokens import upsert_tokens
 from datetime import datetime
-from typing import List
+from typing import List, Dict
 from app.security.internal import require_internal
 from app.services.access_tokens import ensure_access_token, TokenNotFound, ReconnectRequired
+
+from app.db.models import OAuthToken
+from app.services.crypto import decrypt_str
+from app.services.google_oauth import revoke_token
+from app.services.tokens import clear_tokens
 
 router = APIRouter(prefix="/auth/google", tags=["google-oauth"])
 
@@ -96,3 +101,45 @@ async def token(user_id: str = Query(..., min_length=1), db: Session = Depends(g
         raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"failed to fetch token: {e}")
+    
+
+
+class RevokeReq(BaseModel):
+    user_id: str
+
+class RevokeResp(BaseModel):
+    revoked: bool
+    existed: bool
+
+@router.post(
+    "/revoke",
+    response_model=RevokeResp,
+    summary="Revoke a user's Google tokens and clean local storage (idempotent)",
+    dependencies=[Depends(require_internal)],
+)
+async def revoke(payload: RevokeReq, db: Session = Depends(get_db)):
+    user_id = payload.user_id.strip()
+    if not user_id:
+        raise HTTPException(status_code=422, detail="user_id required")
+
+    row = db.query(OAuthToken).filter(OAuthToken.user_id == user_id).one_or_none()
+    if not row:
+        # Idempotent: nothing to revoke locally
+        return RevokeResp(revoked=True, existed=False)
+
+    # Prefer revoking the refresh token; fallback to access token if needed
+    token_to_revoke = None
+    if row.refresh_token_enc:
+        token_to_revoke = decrypt_str(row.refresh_token_enc)
+    elif row.access_token_enc:
+        token_to_revoke = decrypt_str(row.access_token_enc)
+
+    if token_to_revoke:
+        try:
+            await revoke_token(token_to_revoke)
+        except Exception:
+            # Network hiccup? We still clear locally to be safe.
+            pass
+
+    clear_tokens(db, user_id=user_id)
+    return RevokeResp(revoked=True, existed=True)

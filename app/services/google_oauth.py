@@ -124,3 +124,17 @@ async def refresh_access_token(refresh_token: str) -> Dict[str, Any]:
         "token_type": j.get("token_type"),
         "raw": j,
     }
+
+async def revoke_token(token: str) -> bool:
+    """
+    Google OAuth2 token revocation.
+    Returns True if Google says OK or already-revoked (Google may return 200 or 400).
+    """
+    url = "https://oauth2.googleapis.com/revoke"
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    data = {"token": token}
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.post(url, data=data, headers=headers)
+        # 200 = revoked, 400 can mean already invalid/revoked; treat both as success
+        return r.status_code in (200, 400)
