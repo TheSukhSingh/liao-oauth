@@ -8,6 +8,10 @@ from app.db.session import get_db
 from app.services.state import create_state, verify_state, StateError
 from app.services.google_oauth import build_consent_url, exchange_code_for_tokens
 from app.services.tokens import upsert_tokens
+from datetime import datetime
+from typing import List
+from app.security.internal import require_internal
+from app.services.access_tokens import ensure_access_token, TokenNotFound, ReconnectRequired
 
 router = APIRouter(prefix="/auth/google", tags=["google-oauth"])
 
@@ -68,3 +72,27 @@ async def auth_callback(
         raise HTTPException(status_code=500, detail=f"failed to save tokens: {e}")
 
     return {"connected": True}
+
+
+class TokenResp(BaseModel):
+    access_token: str
+    expires_at: datetime | None = None
+    scopes: List[str] = []
+
+@router.get(
+    "/token",
+    response_model=TokenResp,
+    summary="Return a valid Google access token for a user (auto-refresh if expired)",
+    dependencies=[Depends(require_internal)],
+)
+async def token(user_id: str = Query(..., min_length=1), db: Session = Depends(get_db)):
+    try:
+        data = await ensure_access_token(db, user_id=user_id)
+        return data
+    except TokenNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ReconnectRequired as e:
+        # 409/428 both acceptable; using 409 to indicate action required
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"failed to fetch token: {e}")
