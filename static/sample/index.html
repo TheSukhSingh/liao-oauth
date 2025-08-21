@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Connect Google</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 48px auto; }
+    label { display:block; margin: 12px 0 6px; }
+    input, button { padding: 8px 12px; font-size: 16px; }
+    button { cursor: pointer; }
+    .log { margin-top: 16px; font-family: ui-monospace, Menlo, monospace; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Google Auth — Sample</h1>
+
+  <label>User ID</label>
+  <input id="uid" value="tester" />
+
+  <div style="margin-top:16px;">
+    <button id="connect">Connect Google</button>
+  </div>
+
+  <div class="log" id="log"></div>
+
+  <script>
+    const log = (m) => (document.getElementById('log').textContent = m ?? '');
+
+    document.getElementById('connect').addEventListener('click', async () => {
+      const userId = document.getElementById('uid').value.trim();
+      if (!userId) { log("Enter a user_id"); return; }
+
+      log("Requesting auth_url...");
+      try {
+        const res = await fetch(`/auth/google/url?user_id=${encodeURIComponent(userId)}`);
+        if (!res.ok) {
+          const err = await res.text();
+          log(`Failed: ${res.status} ${err}`);
+          return;
+        }
+        const { auth_url } = await res.json();
+        log("Redirecting to Google...");
+        window.location.href = auth_url; // go to consent
+      } catch (e) {
+        log(String(e));
+      }
+    });
+  </script>
+</body>
+</html>
