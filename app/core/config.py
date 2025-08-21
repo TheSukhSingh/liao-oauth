@@ -5,7 +5,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     ENV: str = "dev"
     LOG_DIR: str = "logs"
-
+    
+    INTERNAL_ALLOWED_IPS: List[str] = []
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_BASE: str = "http://localhost:8000"

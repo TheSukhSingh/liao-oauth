@@ -1,17 +1,20 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
 from .routers import health
 from .routers import auth as auth_router 
+from .routers import internal as internal_router
 from .core.config import settings  
 from .core.logging import setup_logging
 from .db.session import engine
 from .db.models import Base
 from app.services.crypto import get_fernet  
 from starlette.staticfiles import StaticFiles
+
 get_fernet()
 setup_logging(settings.LOG_DIR)
+
 app = FastAPI(title="Google Auth Service", version="1.0")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -21,11 +24,13 @@ app.add_middleware(
 )
 app.include_router(health.router)
 app.include_router(auth_router.router)
+app.include_router(internal_router.router)
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
 @app.on_event("startup")
 def on_startup():
     Base.metadata.create_all(bind=engine)
-
 
 if __name__ == "__main__":
     import uvicorn
