@@ -17,7 +17,8 @@ from app.core.logging import setup_logging, set_request_id
 from starlette.middleware.base import BaseHTTPMiddleware
 
 get_fernet()
-setup_logging(settings.LOG_DIR)
+setup_logging()
+# setup_logging(settings.LOG_DIR)
 
 app = FastAPI(title="Google Auth Service", version="1.0")
 
@@ -34,11 +35,16 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
         rid = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:12]
         set_request_id(rid)
         start = time.perf_counter()
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        except Exception:
+            logging.getLogger("app.request").exception("unhandled error")
+            raise
         dur_ms = int((time.perf_counter() - start) * 1000)
         logging.getLogger("app.request").info(
             f"{request.client.host} {request.method} {request.url.path} {response.status_code} {dur_ms}ms",
-            extra={"method": request.method, "path": str(request.url.path), "status": response.status_code, "dur_ms": dur_ms},
+            extra={"method": request.method, "path": str(request.url.path),
+                   "status": getattr(response, 'status_code', 0), "dur_ms": dur_ms},
         )
         response.headers["X-Request-ID"] = rid
         return response
