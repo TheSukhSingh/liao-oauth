@@ -1,27 +1,26 @@
 from __future__ import annotations
+from datetime import datetime
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from app.security.ratelimit import limit_by_api_key, limit_by_user
+
 from app.core.config import settings
 from app.db.session import get_db
-from app.services.state import create_state, verify_state, StateError
-from app.services.google_oauth import build_consent_url, exchange_code_for_tokens
-from app.services.tokens import upsert_tokens
-from datetime import datetime
-from typing import List, Dict
 from app.security.internal import require_internal
-from app.services.access_tokens import ensure_access_token, TokenNotFound, ReconnectRequired
+from app.security.ratelimit import limit_by_api_key, limit_by_user
 
-from app.db.models import OAuthToken
+from app.services.state import verify_state, StateError
+from app.services.google_oauth import build_consent_url, exchange_code_for_tokens, revoke_token
+from app.services.tokens import upsert_tokens, clear_tokens
 from app.services.crypto import decrypt_str
-from app.services.google_oauth import revoke_token
-from app.services.tokens import clear_tokens
+from app.services.access_tokens import ensure_access_token, TokenNotFound, ReconnectRequired
+from app.db.models import OAuthToken
 
 router = APIRouter(prefix="/auth/google", tags=["google-oauth"])
 
 def _redirect_uri() -> str:
-    # single source of truth for the callback URL
     base = settings.GOOGLE_REDIRECT_BASE.rstrip("/")
     return f"{base}/auth/google/callback"
 
@@ -78,7 +77,6 @@ async def auth_callback(
 
     return {"connected": True}
 
-
 class TokenResp(BaseModel):
     access_token: str
     expires_at: datetime | None = None
@@ -97,12 +95,9 @@ async def token(user_id: str = Query(..., min_length=1), db: Session = Depends(g
     except TokenNotFound as e:
         raise HTTPException(status_code=404, detail=str(e))
     except ReconnectRequired as e:
-        # 409/428 both acceptable; using 409 to indicate action required
         raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"failed to fetch token: {e}")
-    
-
 
 class RevokeReq(BaseModel):
     user_id: str
@@ -124,10 +119,8 @@ async def revoke(payload: RevokeReq, db: Session = Depends(get_db)):
 
     row = db.query(OAuthToken).filter(OAuthToken.user_id == user_id).one_or_none()
     if not row:
-        # Idempotent: nothing to revoke locally
         return RevokeResp(revoked=True, existed=False)
 
-    # Prefer revoking the refresh token; fallback to access token if needed
     token_to_revoke = None
     if row.refresh_token_enc:
         token_to_revoke = decrypt_str(row.refresh_token_enc)
@@ -138,7 +131,7 @@ async def revoke(payload: RevokeReq, db: Session = Depends(get_db)):
         try:
             await revoke_token(token_to_revoke)
         except Exception:
-            # Network hiccup? We still clear locally to be safe.
+            # Network failure? We still clear locally to be safe.
             pass
 
     clear_tokens(db, user_id=user_id)

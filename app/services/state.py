@@ -15,7 +15,7 @@ def _b64d(s: str) -> bytes:
     return urlsafe_b64decode((s + pad).encode("ascii"))
 
 def _sign(message: bytes) -> str:
-    key = settings.API_INTERNAL_KEY.encode("utf-8")
+    key = settings.ENCRYPTION_KEY.encode("utf-8")
     sig = hmac.new(key, message, hashlib.sha256).digest()
     return _b64e(sig)
 
