@@ -2,7 +2,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-
+from app.security.ratelimit import limit_by_api_key, limit_by_user
 from app.core.config import settings
 from app.db.session import get_db
 from app.services.state import create_state, verify_state, StateError
@@ -88,7 +88,7 @@ class TokenResp(BaseModel):
     "/token",
     response_model=TokenResp,
     summary="Return a valid Google access token for a user (auto-refresh if expired)",
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_internal), Depends(limit_by_api_key), Depends(limit_by_user)],
 )
 async def token(user_id: str = Query(..., min_length=1), db: Session = Depends(get_db)):
     try:
@@ -115,7 +115,7 @@ class RevokeResp(BaseModel):
     "/revoke",
     response_model=RevokeResp,
     summary="Revoke a user's Google tokens and clean local storage (idempotent)",
-    dependencies=[Depends(require_internal)],
+    dependencies=[Depends(require_internal), Depends(limit_by_api_key)],
 )
 async def revoke(payload: RevokeReq, db: Session = Depends(get_db)):
     user_id = payload.user_id.strip()

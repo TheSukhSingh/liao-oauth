@@ -39,17 +39,12 @@ def upsert_tokens(
 
 def clear_tokens(db: Session, *, user_id: str) -> bool:
     """
-    Remove access/refresh tokens + expiry for this user_id.
-    Keeps the row for auditability; safe to call multiple times.
+    Remove the user's token record entirely (idempotent).
+    Returns True if a row existed and was deleted.
     """
     row = db.query(OAuthToken).filter(OAuthToken.user_id == user_id).one_or_none()
     if not row:
         return False
-    row.access_token_enc = None
-    row.refresh_token_enc = None
-    row.expires_at = None
-    # keep scopes_json as-is or blank it if you prefer:
-    # row.scopes_json = None
-    db.add(row)
+    db.delete(row)
     db.commit()
     return True
