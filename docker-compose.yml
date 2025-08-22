@@ -6,11 +6,12 @@ services:
     env_file:
       - .env
     ports:
-      - "8000:8000"
+      - "8080:8000"
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
       - ./static:/app/static
+      - ./.env:/app/.env:ro    
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz"]
       interval: 30s
