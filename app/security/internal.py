@@ -38,15 +38,26 @@ def _ip_allowed(client_ip: str, allowed: List[str]) -> bool:
                 return True
     return False
 
+def _get_client_ip(request: Request) -> str:
+    # honor proxies if present; take the first hop
+    xf = request.headers.get("x-forwarded-for")
+    if xf:
+        return xf.split(",")[0].strip()
+    return request.client.host if request.client else ""
+
+def _normalize_host(s: str) -> str:
+    return "127.0.0.1" if s.strip().lower() == "localhost" else s.strip()
+
 async def require_internal(
     request: Request,
     x_api_key: Optional[str] = Header(default=None, alias="X-API-Key"),
 ):
-    # 1) API key check
     if not x_api_key or x_api_key != settings.API_INTERNAL_KEY:
+        # using 401 for both missing/invalid is fine (reduces key probing)
         raise HTTPException(status_code=401, detail="missing or invalid X-API-Key")
 
-    # 2) Optional IP allowlist
-    client_ip = request.client.host if request.client else ""
-    if not _ip_allowed(client_ip, settings.INTERNAL_ALLOWED_IPS):
+    client_ip = _get_client_ip(request)
+    allowed = [_normalize_host(x) for x in settings.INTERNAL_ALLOWED_IPS or []]
+    if not _ip_allowed(client_ip, allowed):
         raise HTTPException(status_code=403, detail="ip_not_allowed")
+
