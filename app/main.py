@@ -15,6 +15,7 @@ from app.services.crypto import get_fernet
 from starlette.staticfiles import StaticFiles
 from app.core.logging import setup_logging, set_request_id
 from starlette.middleware.base import BaseHTTPMiddleware
+
 get_fernet()
 setup_logging(settings.LOG_DIR)
 
