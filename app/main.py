@@ -4,9 +4,10 @@ import uuid
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from .routers import health, google_docs, google_slides
+from .routers import google_drive as google_drive_router
+from .routers import google_sheets as google_sheets_router
 from .routers import auth as auth_router 
 from .routers import internal as internal_router
-from .routers import google_api as google_api_router
 from .core.config import settings  
 from .core.logging import setup_logging
 from .db.session import engine
@@ -55,10 +56,10 @@ app.add_middleware(RequestIdMiddleware)
 app.include_router(health.router)
 app.include_router(auth_router.router)
 app.include_router(internal_router.router)
-app.include_router(google_api_router.router)
 app.include_router(google_docs.router)
 app.include_router(google_slides.router)
-app.include_router(google_docs.router)
+app.include_router(google_drive_router.router)
+app.include_router(google_sheets_router.router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 

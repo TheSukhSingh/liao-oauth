@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.security.internal import require_internal
-from app.security.ratelimit import limit_by_api_key
+from app.security.ratelimit import limit_by_api_key, limit_by_user
 from app.services.access_tokens import ensure_access_token
 
 router = APIRouter(prefix="/google/slides", tags=["google-slides"])
@@ -31,8 +31,10 @@ def _shape_kind(shape: Dict[str, Any]) -> str:
         return "body"
     return "other"
 
-@router.get("/{presentation_id}/summary",
-            dependencies=[Depends(require_internal), Depends(limit_by_api_key)])
+@router.get(
+    "/{presentation_id}/summary",
+    dependencies=[Depends(require_internal), Depends(limit_by_api_key), Depends(limit_by_user)],
+)
 async def summarize_presentation(
     presentation_id: str = Path(..., min_length=5),
     user_id: str = Query(...),
@@ -89,7 +91,10 @@ async def summarize_presentation(
         "slides": slides,
     }
 
-@router.get("/{presentation_id}", dependencies=[Depends(require_internal), Depends(limit_by_api_key)])
+@router.get(
+    "/{presentation_id}",
+    dependencies=[Depends(require_internal), Depends(limit_by_api_key), Depends(limit_by_user)],
+)
 async def get_presentation(
     presentation_id: str = Path(..., min_length=5),
     user_id: str = Query(...),

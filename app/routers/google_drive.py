@@ -1,4 +1,3 @@
-# app/routers/google_drive.py  (or wherever you put Google routes)
 from __future__ import annotations
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -7,11 +6,14 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.services.access_tokens import ensure_access_token
 from app.security.internal import require_internal
-from app.security.ratelimit import limit_by_api_key
+from app.security.ratelimit import limit_by_api_key, limit_by_user
 
 router = APIRouter(prefix="/google/drive", tags=["google-drive"])
 
-@router.get("/me", dependencies=[Depends(require_internal), Depends(limit_by_api_key)])
+@router.get(
+    "/me",
+    dependencies=[Depends(require_internal), Depends(limit_by_api_key), Depends(limit_by_user)],
+)
 async def drive_me(user_id: str = Query(...), db: Session = Depends(get_db)):
     access = await ensure_access_token(db, user_id=user_id)
     headers = {"Authorization": f"Bearer {access['access_token']}"}
@@ -22,7 +24,10 @@ async def drive_me(user_id: str = Query(...), db: Session = Depends(get_db)):
         raise HTTPException(500, f"google api error: {r.text[:200]}")
     return r.json()
 
-@router.get("/files", dependencies=[Depends(require_internal), Depends(limit_by_api_key)])
+@router.get(
+    "/files",
+    dependencies=[Depends(require_internal), Depends(limit_by_api_key), Depends(limit_by_user)],
+)
 async def drive_files(
     user_id: str = Query(...),
     page_size: int = Query(10, ge=1, le=1000),

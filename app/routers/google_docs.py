@@ -1,15 +1,11 @@
-# app/routers/google_docs.py
 from __future__ import annotations
-
 from typing import List, Dict, Any
-
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
-
 from app.db.session import get_db
 from app.security.internal import require_internal
-from app.security.ratelimit import limit_by_api_key
+from app.security.ratelimit import limit_by_api_key, limit_by_user
 from app.services.access_tokens import ensure_access_token
 
 router = APIRouter(prefix="/google/docs", tags=["google-docs"])
@@ -44,7 +40,7 @@ def _collect_doc_text(body: Dict[str, Any]) -> str:
 @router.get(
     "/{document_id}/text",
     operation_id="docs_get_text",
-    dependencies=[Depends(require_internal), Depends(limit_by_api_key)],
+    dependencies=[Depends(require_internal), Depends(limit_by_api_key), Depends(limit_by_user)],
 )
 async def get_doc_text(
     document_id: str = Path(..., min_length=5),
@@ -64,7 +60,7 @@ async def get_doc_text(
 @router.get(
     "/{doc_id}",
     operation_id="docs_get_document",
-    dependencies=[Depends(require_internal), Depends(limit_by_api_key)],
+    dependencies=[Depends(require_internal), Depends(limit_by_api_key), Depends(limit_by_user)],
 )
 async def get_doc(
     doc_id: str = Path(..., min_length=5),

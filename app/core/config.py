@@ -17,11 +17,12 @@ class Settings(BaseSettings):
     RATE_LIMIT_MAX_PER_USER: int = 60
 
     ALLOWED_REDIRECT_HOSTS: List[str] = ["localhost", "127.0.0.1"]
-    ENCRYPTION_KEY: str = ""      # base64/url-safe or any secret string for HMAC
-    API_INTERNAL_KEY: str = ""    # long random string
+    ENCRYPTION_KEY: str = ""      
+    API_INTERNAL_KEY: str = ""    
 
-    CORS_ORIGINS: List[str] = ["http://localhost:8000", "http://127.0.0.1:8000"]
-
+    # CORS: default to disabled (README expectation); set via env when needed
+    CORS_ORIGINS: List[str] = []
+   
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     @field_validator("ALLOWED_REDIRECT_HOSTS", "CORS_ORIGINS", mode="before")
